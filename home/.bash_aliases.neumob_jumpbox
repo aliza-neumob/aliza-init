@@ -1,0 +1,152 @@
+# bash aliases useful on a neumob jump box. 
+# depends on the existence of ~/node-tools as a clone of git@github.com:neumob/node-tools.git
+
+function knife-murder() {
+    H="${1?}"
+    knife client delete -y "$H"
+    knife node delete -y "$H"
+}
+
+alias reprofile='source ~/.bash_profile; source ~/.bash_aliases'
+
+function offline-notready() {
+    for host in "$@"; do
+        (cd ~/node-tools && ./change_node.py --offline --notready "$host")
+    done
+}
+
+function online-ready() {
+    for host in "$@"; do
+        (cd ~/node-tools && ./change_node.py --online --ready "$host")
+    done
+}
+
+function show-status() {
+    (cd ~/node-tools && ./change_node.py --status "${1?}")
+}
+
+function newip() {
+    (cd ~/node-tools && ./change_node.py --newip "${2?}" "${1?}")
+}
+
+function ssh-timeout() {
+    local timeout="${1?}"
+    shift
+
+    ssh -o "ConnectTimeout=${timeout}" -o LogLevel=error "$@"
+}
+
+function ssh-noverify() {
+    local ssh_opts=""
+    if [[ "$1" = "fastclose" ]]; then
+        ssh_opts="-o ServerAliveInterval=1"
+        shift
+    elif [[ "$1" = "-q" ]]; then
+        ssh_opts="-q"
+        shift
+    elif [[ "$1" = "-t" ]]; then
+        ssh_opts="-t"
+        shift
+    elif [[ "$1" = "-tt" ]]; then
+        ssh_opts="-tt"
+        shift
+    fi
+
+    local userhost="$1"
+    shift
+
+    if [[ -n "$SSHPASS" ]]; then
+        # shellcheck disable=SC2086,SC2029
+        sshpass -e ssh $ssh_opts -o LogLevel=ERROR -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$userhost" "$@"
+    else
+        # shellcheck disable=SC2086,SC2029
+        ssh $ssh_opts -o LogLevel=ERROR -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$userhost" "$@"
+    fi
+}
+
+function wait-radar() {
+    echo ${1?} >/dev/null
+
+    while true; do
+        for host in "${@}"; do
+            echo "${host}: $(ssh-noverify "${host}" /opt/yali-agent/checks.d/radar_netmon)"
+        done
+
+        sleep 30
+    done
+}
+
+function channels()
+{
+    ssh-noverify "${1?}" "/opt/yali-agent/checks.d/np_channels"
+}
+
+function mkpasswd()
+{
+    local len=32
+    if [ $# -eq 1 ]; then
+        len="$1"
+    fi
+
+    openssl rand -base64 400 | paste -sd "" - | sed "s/[^a-zA-Z0-9]//g" | cut -c "1-${len}"
+}
+
+alias deploy-spacecat='ssh-noverify spacecat1-hub sudo chef-client --once'
+
+function radar-best()
+{
+    ssh-noverify "${1?}" "radar_cli -n | grep '^POP.*RTT' | sort -n -k 3 | head -n20"
+}
+
+function restart-ats()
+{
+    ssh-noverify -tt "${1?}" "sudo nm-graceful service nm-trafficserver restart"
+}
+
+function compare-as()
+{
+    local as1 as2
+    if [[ "$1" == *:* ]]; then
+        as1="${1%%:*}"
+        as2="${1##*:}"
+    else
+        as1="$1"
+        [[ "$2" == "vs" ]] && shift
+
+        as2="$2"
+    fi
+
+    echo "Comparing AS${as1//AS} to AS${as2//AS}..."
+    whois -h whois.cymru.com " -v AS${as1//AS}"; whois -h whois.cymru.com " -v AS${as2//AS}" | tail -n +2
+}
+
+
+function romer-report()
+{
+    curl -o - "http://romer.neumob.io/report/${1?}"
+}
+
+function romer-force-measure()
+{
+    local percent=""
+    [[ -n "$2" ]] && percent="&pcnt=${2}"
+
+    curl -o - "http://romer.neumob.io/measure/${1?}?force=true${percent}"
+}
+
+function cookbook-cleanup()
+{
+    local cookbook="${1?}"
+    shift
+
+    local opt=''
+    if [[ "${1?}" == '-y' ]] || [[ "${1?}" == '-f' ]]; then
+        opt='-y'
+        shift
+    fi
+
+    for ver in "$@"; do
+        knife cookbook delete $opt "$cookbook" "$ver"
+    done
+}
+
