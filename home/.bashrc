@@ -29,6 +29,8 @@ export PS1="# \e[1;90m\u@\h:\w \e[m\r\n\$ "
 
 export GIT_EDITOR=vim
 
+# not sure where this is getting mangled.
+unset LS_COLORS
 
 # 
 # if [ -f ~/..bash_aliases.neumob_jumpbox ]
