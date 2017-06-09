@@ -1,0 +1,61 @@
+#!/usr/bin/env bash 
+
+# slightly different from all the other runon bash scripts I've written
+# for no particularly good reason.  
+
+ME=$(basename ${0})
+HERE="${PWD}"
+
+usage() {
+    if [ "${1}" ]
+    then
+        echo "${@}"
+        echo ""
+    fi
+
+    echo "Use the source, Luke!"
+    exit 1
+}
+
+ishost() {
+    host -t A "${1}" > /dev/null
+    RC=${?}
+    echo ${RC}
+}
+
+NOW=$(date +%FT%T%z)
+# 2017-06-02T21:25:37+0000 -- human eye v. collision risk
+
+
+if [ -z "${2}" ]
+then
+    usage "${ME} <remote host FQDN> <command>"
+fi
+
+EXISTS=$(ishost "${1}")
+if [ ! ${EXISTS} ]
+then
+    usage "Host ${1} does not resolve."
+fi
+
+remotehost="${1}"
+shift
+remotecommand="${@}"
+
+# TODO: replace ${ME} with a sanitized version of command
+outfile="${remotehost}.${ME}.${NOW}.output"
+generic="${remotehost}.${ME}.output"
+
+
+echo "## Host: ${remotehost}" > ${outfile}
+echo "## Command: ${remotecommand}" >> ${outfile}
+echo "## Date: ${NOW}" >> ${outfile}
+echo "" >> ${outfile}
+
+# TODO: check return status 
+ssh -q ${remotehost} "${remotecommand}" >> ${outfile}
+
+rm -f ${generic}
+ln -s ${outfile} ${generic}
+# echo "cat ${HERE}/${generic}" > /tmp/putout
+
